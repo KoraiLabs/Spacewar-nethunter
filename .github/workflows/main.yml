@@ -1,0 +1,89 @@
+# Workflow: Build GKI NetHunter Kernel with GCC 4.9 for modules, Clang for kernel
+name: Build GKI NetHunter Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - sm7325/v/mr
+  pull_request:
+    branches:
+      - sm7325/v/mr
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      O: out
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: sm7325/v/mr
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libncurses5-dev libssl-dev wget zip unzip git ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/nos3_nh_defconfig') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      # ✅ GCC 4.9 for external modules only
+      - name: Setup GCC 4.9 cross-compiler
+        run: |
+          mkdir -p $HOME/toolchains/gcc
+          wget -qO gcc.zip https://bitbucket.org/UBERTC/aarch64-linux-android-4.9/get/78e5a7be6044.zip
+          unzip -q gcc.zip -d $HOME/toolchains/gcc
+          GCC_DIR=$(find $HOME/toolchains/gcc -maxdepth 1 -mindepth 1 -type d)
+          export CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-
+          export PATH=$GCC_DIR/bin:$PATH
+
+      # ✅ Clang 11.0.2 + LLD 11.0.2 for kernel
+      - name: Setup Clang 11
+        run: |
+          mkdir -p $HOME/toolchains/clang
+          wget -qO clang11.zip https://android.googlesource.com/toolchain/llvm-project/+archive/b397f81060ce6d701042b782172ed13bee898b79/clang-r383902b.zip
+          unzip -q clang11.zip -d $HOME/toolchains/clang
+          export PATH=$HOME/toolchains/clang/bin:$PATH
+          clang --version
+          ld.lld --version
+
+      - name: Build Kernel
+        run: |
+          set -e
+          export O=out
+          export CC="clang"
+          export CXX="clang++"
+          export LD=ld.lld
+          export CROSS_COMPILE=$CROSS_COMPILE
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+          make ARCH=arm64 mrproper
+          make O=$O ARCH=arm64 nos3_nh_defconfig
+          make O=$O ARCH=arm64 olddefconfig
+
+          # Compile kernel (Clang) + modules (GCC)
+          make -j$(nproc) O=$O ARCH=arm64 CC="$CC" CROSS_COMPILE=$CROSS_COMPILE
+
+          mkdir -p AnyKernel/modules
+          cp $O/arch/arm64/boot/Image.gz AnyKernel/
+          cp -r $O/lib/modules/* AnyKernel/modules/ || true
+          cd AnyKernel && zip -r ../nethunter_kernel.zip *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nethunter_kernel
+          path: nethunter_kernel.zip

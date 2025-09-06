@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   # runner x86_64
     env:
       ARCH: arm64
       O: out
@@ -39,11 +39,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-      # 4️⃣ Descargar y configurar Clang 11.0.2 (r383902b1)
+      # 4️⃣ Descargar y configurar Clang 11.0.2 (r383902b1) x86 host
       - name: Setup Clang
         run: |
           mkdir -p $HOME/toolchains/clang
-          wget -qO clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/r383902b1/clang-r383902b1-linux-x86.tar.gz
+          wget -qO clang.tar.gz https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/4c6fbc28d3b078a5308894fc175f962bb26a5718/clang-r383902b1.tar.gz
           tar xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
           echo "$HOME/toolchains/clang/bin" >> $GITHUB_PATH
           echo "CC=ccache clang" >> $GITHUB_ENV
@@ -87,4 +87,3 @@ jobs:
         with:
           name: nethunter_kernel
           path: nethunter_kernel.zip
-

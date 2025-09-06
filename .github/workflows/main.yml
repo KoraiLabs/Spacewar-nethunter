@@ -61,8 +61,10 @@ jobs:
           # Descomprimir Clang
           tar -xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
           echo "PATH=$HOME/toolchains/clang/bin:$PATH" >> $GITHUB_ENV
-          clang --version
-          ld.lld --version
+
+          # Verificar que se usen los binarios correctos
+          $HOME/toolchains/clang/bin/clang --version
+          $HOME/toolchains/clang/bin/ld.lld --version
 
       - name: Build Kernel
         run: |

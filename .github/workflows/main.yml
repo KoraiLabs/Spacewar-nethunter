@@ -36,29 +36,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-      # ✅ Setup GCC 4.9 for modules
       - name: Setup GCC 4.9 cross-compiler
         run: |
           mkdir -p $HOME/toolchains/gcc
           wget -qO gcc.zip https://bitbucket.org/UBERTC/aarch64-linux-android-4.9/get/78e5a7be6044.zip
           unzip -q gcc.zip -d $HOME/toolchains/gcc
           GCC_DIR=$(find $HOME/toolchains/gcc -maxdepth 1 -mindepth 1 -type d)
-          export CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-
-          export PATH=$GCC_DIR/bin:$PATH
 
-          if [ ! -x "$CROSS_COMPILE"gcc ]; then
+          # Persistimos variables para pasos siguientes
+          echo "CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-" >> $GITHUB_ENV
+          echo "PATH=$GCC_DIR/bin:$PATH" >> $GITHUB_ENV
+
+          # Verificamos que el compilador exista
+          if [ ! -x "$GCC_DIR/bin/aarch64-linux-android-gcc" ]; then
             echo "Error: GCC cross-compiler not found"
             exit 1
           fi
-          $CROSS_COMPILEgcc --version
+          $GCC_DIR/bin/aarch64-linux-android-gcc --version
 
-      # ✅ Setup official stock Clang 11.0.2 + LLD 11.0.2
       - name: Setup Clang 11.0.2 + LLD
         run: |
           mkdir -p $HOME/toolchains/clang
           wget -qO clang.tar.gz https://android.googlesource.com/toolchain/llvm-project/+archive/b397f81060ce6d701042b782172ed13bee898b79/.tar.gz
           tar -xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
-          export PATH=$HOME/toolchains/clang/bin:$PATH
+          
+          echo "PATH=$HOME/toolchains/clang/bin:$PATH" >> $GITHUB_ENV
 
           clang --version
           ld.lld --version
@@ -79,10 +81,10 @@ jobs:
           make O=$O ARCH=arm64 nos3_nh_defconfig
           make O=$O ARCH=arm64 olddefconfig
 
-          # Build kernel and modules
+          # Compilamos kernel con Clang y módulos con GCC
           make -j$(nproc) O=$O ARCH=arm64 CC="$CC" CROSS_COMPILE=$CROSS_COMPILE
 
-          # Prepare AnyKernel package
+          # Preparamos paquete AnyKernel
           mkdir -p AnyKernel/modules
           cp $O/arch/arm64/boot/Image.gz AnyKernel/
           cp -r $O/lib/modules/* AnyKernel/modules/ || true
@@ -93,4 +95,3 @@ jobs:
         with:
           name: nethunter_kernel
           path: nethunter_kernel.zip
-

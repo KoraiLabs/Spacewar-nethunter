@@ -36,32 +36,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-      - name: Setup GCC 4.9 cross-compiler
+      - name: Setup toolchains in parallel
         run: |
-          mkdir -p $HOME/toolchains/gcc
-          wget -qO gcc.zip https://bitbucket.org/UBERTC/aarch64-linux-android-4.9/get/78e5a7be6044.zip
+          mkdir -p $HOME/toolchains/gcc $HOME/toolchains/clang
+
+          # Descarga GCC
+          wget -qO gcc.zip https://bitbucket.org/UBERTC/aarch64-linux-android-4.9/get/78e5a7be6044.zip &
+          # Descarga Clang
+          wget -qO clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-11.0.0_r3/clang-r383902b.tar.gz &
+
+          wait
+
+          # Descomprimir GCC
           unzip -q gcc.zip -d $HOME/toolchains/gcc
           GCC_DIR=$(find $HOME/toolchains/gcc -maxdepth 1 -mindepth 1 -type d)
-
           echo "CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-" >> $GITHUB_ENV
           echo "PATH=$GCC_DIR/bin:$PATH" >> $GITHUB_ENV
-
           if [ ! -x "$GCC_DIR/bin/aarch64-linux-android-gcc" ]; then
             echo "Error: GCC cross-compiler not found"
             exit 1
           fi
           $GCC_DIR/bin/aarch64-linux-android-gcc --version
 
-      - name: Setup Clang 11.0.2 + LLD (commit específico)
-        run: |
-          mkdir -p $HOME/toolchains/clang
-          git clone https://android.googlesource.com/toolchain/llvm-project $HOME/toolchains/clang
-          cd $HOME/toolchains/clang
-          git fetch --all --tags
-          git reset --hard b397f81060ce6d701042b782172ed13bee898b79
-
+          # Descomprimir Clang
+          tar -xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
           echo "PATH=$HOME/toolchains/clang/bin:$PATH" >> $GITHUB_ENV
-
           clang --version
           ld.lld --version
 
@@ -81,10 +80,10 @@ jobs:
           make O=$O ARCH=arm64 nos3_nh_defconfig
           make O=$O ARCH=arm64 olddefconfig
 
-          # Compilamos kernel con Clang y módulos con GCC
+          # Compilación del kernel y módulos
           make -j$(nproc) O=$O ARCH=arm64 CC="$CC" CROSS_COMPILE=$CROSS_COMPILE
 
-          # Preparamos paquete AnyKernel
+          # Preparar AnyKernel package
           mkdir -p AnyKernel/modules
           cp $O/arch/arm64/boot/Image.gz AnyKernel/
           cp -r $O/lib/modules/* AnyKernel/modules/ || true
@@ -95,4 +94,3 @@ jobs:
         with:
           name: nethunter_kernel
           path: nethunter_kernel.zip
-

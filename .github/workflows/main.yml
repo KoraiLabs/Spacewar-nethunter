@@ -1,13 +1,13 @@
 name: Build GKI NetHunter Kernel
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - sm7325/v/mr
   pull_request:
     branches:
       - sm7325/v/mr
-  workflow_dispatch:
 
 jobs:
   build:
@@ -32,18 +32,18 @@ jobs:
 
       # 3️⃣ Cache de ccache entre builds
       - name: Cache ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/.ccache
           key: ${{ runner.os }}-ccache-${{ hashFiles('**/nos3_nh_defconfig') }}
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-      # 4️⃣ Descargar y configurar Clang 10.0.9
+      # 4️⃣ Descargar y configurar Clang 11.0.2
       - name: Setup Clang
         run: |
           mkdir -p $HOME/toolchains/clang
-          wget -qO clang.tar.gz https://github.com/ravindu644/Android-Kernel-Tutorials/releases/download/toolchains/llvm-arm-toolchain-ship-10.0.9.tar.gz
+          wget -qO clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+/refs/tags/r383902b1?format=tar.gz
           tar xf clang.tar.gz -C $HOME/toolchains/clang
           echo "$HOME/toolchains/clang/bin" >> $GITHUB_PATH
           echo "CC=ccache clang" >> $GITHUB_ENV
@@ -58,17 +58,22 @@ jobs:
           tar xf gcc.tar.gz -C $HOME/toolchains/gcc
           echo "CROSS_COMPILE=$HOME/toolchains/gcc/bin/aarch64-linux-android-" >> $GITHUB_ENV
 
-      # 6️⃣ Configurar kernel con nos3_nh_defconfig
+      # 6️⃣ Limpiar árbol de fuente (mrproper)
+      - name: Clean source tree
+        run: |
+          make ARCH=$ARCH mrproper
+
+      # 7️⃣ Configurar kernel con nos3_nh_defconfig
       - name: Kernel config
         run: |
           make O=$O ARCH=$ARCH nos3_nh_defconfig
 
-      # 7️⃣ Compilar kernel y módulos
+      # 8️⃣ Compilar kernel y módulos
       - name: Build kernel and modules
         run: |
           make -j$(nproc) O=$O ARCH=$ARCH CC="$CC" CROSS_COMPILE=$CROSS_COMPILE
 
-      # 8️⃣ Preparar AnyKernel
+      # 9️⃣ Preparar AnyKernel
       - name: Package AnyKernel
         run: |
           mkdir -p AnyKernel/modules
@@ -76,7 +81,7 @@ jobs:
           cp -r $O/lib/modules/* AnyKernel/modules/ || true
           cd AnyKernel && zip -r ../nethunter_kernel.zip *
 
-      # 9️⃣ Subir ZIP como artifact
+      # 🔟 Subir ZIP como artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

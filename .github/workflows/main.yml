@@ -43,23 +43,23 @@ jobs:
           unzip -q gcc.zip -d $HOME/toolchains/gcc
           GCC_DIR=$(find $HOME/toolchains/gcc -maxdepth 1 -mindepth 1 -type d)
 
-          # Persistimos variables para pasos siguientes
           echo "CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-" >> $GITHUB_ENV
           echo "PATH=$GCC_DIR/bin:$PATH" >> $GITHUB_ENV
 
-          # Verificamos que el compilador exista
           if [ ! -x "$GCC_DIR/bin/aarch64-linux-android-gcc" ]; then
             echo "Error: GCC cross-compiler not found"
             exit 1
           fi
           $GCC_DIR/bin/aarch64-linux-android-gcc --version
 
-      - name: Setup Clang 11.0.2 + LLD
+      - name: Setup Clang 11.0.2 + LLD (commit específico)
         run: |
           mkdir -p $HOME/toolchains/clang
-          wget -qO clang.tar.gz https://android.googlesource.com/toolchain/llvm-project/+archive/b397f81060ce6d701042b782172ed13bee898b79/.tar.gz
-          tar -xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
-          
+          git clone https://android.googlesource.com/toolchain/llvm-project $HOME/toolchains/clang
+          cd $HOME/toolchains/clang
+          git fetch --all --tags
+          git reset --hard b397f81060ce6d701042b782172ed13bee898b79
+
           echo "PATH=$HOME/toolchains/clang/bin:$PATH" >> $GITHUB_ENV
 
           clang --version
@@ -95,3 +95,4 @@ jobs:
         with:
           name: nethunter_kernel
           path: nethunter_kernel.zip
+

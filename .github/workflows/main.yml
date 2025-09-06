@@ -22,6 +22,7 @@ jobs:
           aosp-gcc: true
           aosp-clang: true
           ksu: false
+          android-version: 12
           aosp-clang-version: r383902b
           disable-lto: true
           anykernel3: true

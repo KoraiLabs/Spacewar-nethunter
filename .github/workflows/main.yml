@@ -1,98 +1,28 @@
-
-name: Build GKI NetHunter Kernel
-
+# A simple action usage
+name: Build Kernel
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - sm7325/v/mr
-  pull_request:
-    branches:
-      - sm7325/v/mr
 
 jobs:
-  build:
+  Build-Kernel:
+    strategy:
+      fail-fast: false
     runs-on: ubuntu-latest
-    env:
-      O: out
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          ref: sm7325/v/mr
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison flex libncurses5-dev libssl-dev wget zip unzip git ccache
-
-      - name: Cache ccache
-        uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ hashFiles('**/nos3_nh_defconfig') }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
-
-      - name: Setup GCC 4.9
-        run: |
-          mkdir -p $HOME/toolchains/gcc
-          wget -qO gcc.zip https://bitbucket.org/UBERTC/aarch64-linux-android-4.9/get/78e5a7be6044.zip
-          unzip -q gcc.zip -d $HOME/toolchains/gcc
-          GCC_DIR=$(find $HOME/toolchains/gcc -maxdepth 1 -mindepth 1 -type d)
-
-          echo "CROSS_COMPILE=$GCC_DIR/bin/aarch64-linux-android-" >> $GITHUB_ENV
-          echo "PATH=$GCC_DIR/bin:$PATH" >> $GITHUB_ENV
-
-          if [ ! -x "$GCC_DIR/bin/aarch64-linux-android-gcc" ]; then
-            echo "Error: GCC cross-compiler not found"
-            exit 1
-          fi
-          $GCC_DIR/bin/aarch64-linux-android-gcc --version
-
-      - name: Setup Clang 11.0.2 + LLD (prebuilt)
-        run: |
-          mkdir -p $HOME/toolchains/clang
-          wget -qO clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-11.0.0_r3/clang-r383902b.tar.gz
-          tar -xf clang.tar.gz -C $HOME/toolchains/clang --strip-components=1
-
-          # Aseguramos que este clang se use antes que el del sistema
-          echo "PATH=$HOME/toolchains/clang/bin:$PATH" >> $GITHUB_ENV
-
-          # Verificar binarios correctos
-          $HOME/toolchains/clang/bin/clang --version
-          $HOME/toolchains/clang/bin/ld.lld --version
-
       - name: Build Kernel
-        run: |
-          set -e
-
-          export O=$O
-          export CC="ccache clang"
-          export CXX="ccache clang++"
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-
-          git submodule sync --recursive
-          git submodule update --init --recursive
-
-          make ARCH=arm64 mrproper
-          make O=$O ARCH=arm64 nos3_nh_defconfig
-          make O=$O ARCH=arm64 olddefconfig
-
-          # Compilar kernel y módulos
-          make -j$(nproc) O=$O ARCH=arm64 CC="$CC" CROSS_COMPILE=$CROSS_COMPILE
-
-          # Preparar AnyKernel package
-          mkdir -p AnyKernel/modules
-          cp $O/arch/arm64/boot/Image.gz AnyKernel/
-          cp -r $O/lib/modules/* AnyKernel/modules/ || true
-          cd AnyKernel && zip -r ../nethunter_kernel.zip *
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: dabao1955/kernel_build_action@main
         with:
-          name: nethunter_kernel
-          path: nethunter_kernel.zip
+          kernel-url: https://github.com/KoraiLabs/Spacewar-nethunter
+          kernel-branch: sm7325/v/mr
+          config: nos3_nh_defconfig
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          ksu: false
+          android-version: 15
+          aosp-clang-version: r383902b
+          disable-lto: true
+          anykernel3: true
